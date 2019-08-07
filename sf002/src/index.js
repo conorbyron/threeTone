@@ -1,6 +1,13 @@
 import * as THREE from 'three';
 import OrbitControls from 'three-orbitcontrols';
+import fscreen from 'fscreen';
 //import Tone from 'tone';
+
+// Use an iridescent metallic material.
+
+// Develop a  system for fading and cutting between specified colours. 
+// Randomized hold and ramp times. Some colours are meant to create gradients, 
+// others are meant to have sharp boundaries (and potentially only exist for a split second).
 
 const VERTEX_SHADER_ELLIPSOID = `
 varying vec3 vPosition;
@@ -336,7 +343,7 @@ let shaderMaterial = new THREE.ShaderMaterial({
   uniforms: {
     scale: { type: "f", value: 0.199 }, //setting this to  exactly 2.0 causes weird glitches in the vertices...
     hue: { type: "f", value: 0.0 },
-    height: { type: "f", value: 1.0 },
+    height: { type: "f", value: 9.0 },
     time: { type: "f", value: 0 },
   },
   vertexShader: VERTEX_SHADER_ELLIPSOID,
@@ -346,19 +353,18 @@ let shaderMaterial = new THREE.ShaderMaterial({
 let scene = new THREE.Scene();
 let camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 
-let renderer = new THREE.WebGLRenderer({ antialias: true});
+let renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true  });
 renderer.setSize(window.innerWidth, window.innerHeight);
+
+renderer.autoClearColor = false;
+renderer.setClearColor(0xffffff, 1);
+
 document.body.appendChild(renderer.domElement);
 
 let controls = new OrbitControls(camera, renderer.domElement);
 controls.enableZoom = true; // Doesn't work!
 
-let eggRadius = 5;
-let eggVertScale = 2.6;
-let baseHeight = 2;
-
-let geometry = new THREE.SphereGeometry(5, 64, 128);
-geometry.applyMatrix(new THREE.Matrix4().makeScale(1.0, 2.4, 1.0));
+let geometry = new THREE.SphereGeometry(5, 128, 128);
 let mesh = new THREE.Mesh(geometry, shaderMaterial);
 scene.add(mesh);
 
@@ -372,22 +378,9 @@ var glowMaterial = new THREE.ShaderMaterial(
     transparent: true
   });
 
-geometry = new THREE.SphereGeometry(5, 64, 64);
-geometry.applyMatrix(new THREE.Matrix4().makeScale(1.2, 2.8, 1.2));
+geometry = new THREE.SphereGeometry(6, 64, 64);
 var glow = new THREE.Mesh(geometry, glowMaterial);
 //scene.add(glow);
-
-geometry = new THREE.CylinderGeometry(8, 8, 2, 32);
-let material = new THREE.MeshPhysicalMaterial({ color: 0xffffff, recieveShadow: true, });
-let base = new THREE.Mesh(geometry, material);
-base.position.y = -(eggRadius * eggVertScale + baseHeight / 2);
-//scene.add(base);
-
-geometry = new THREE.PlaneGeometry(30, 30, 32);
-let plane = new THREE.Mesh(geometry, material);
-plane.rotation.x = Math.PI * -0.5;
-plane.position.y = -(eggRadius * eggVertScale + baseHeight);
-//scene.add(plane);
 
 let light = new THREE.PointLight(0x193366, 1, 100);
 //scene.add(light);
@@ -404,6 +397,53 @@ let maxBeta = 0.6;
 let minBeta = 0.4;
 let maxDelta = 0.6;
 let minDelta = 0.4;
+
+function handler() {
+  if (fscreen.fullscreenElement !== null) {
+      console.log('Entered fullscreen mode');
+  } else {
+      console.log('Exited fullscreen mode');
+  }
+}
+
+if (fscreen.fullscreenEnabled) {
+  fscreen.addEventListener('fullscreenchange', handler, false);
+}
+
+const commands = {
+  'f': [
+      () => {
+          if (fscreen.fullscreenElement)
+              fscreen.exitFullscreen();
+          else
+              fscreen.requestFullscreen(document.body);
+      }]
+}
+
+const keyDown = e => {
+  if (commands[e.key]) {
+      if (!commands[e.key].down) {
+          let action = commands[e.key][0];
+          if (action) action();
+          commands[e.key].down = true;
+      }
+  }
+}
+
+window.addEventListener('keydown', keyDown);
+window.addEventListener( 'resize', onWindowResize, false );
+
+function onWindowResize(){
+
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+
+    renderer.setSize( window.innerWidth, window.innerHeight );
+
+}
+
+let h = 0.0;
+
 let animate = function () {
   requestAnimationFrame(animate);
   if (alpha > maxAlpha) maxAlpha = alpha;
@@ -414,8 +454,8 @@ let animate = function () {
   time += (maxAlpha - alpha);
   alphaBuffer.push((maxAlpha - alpha)/maxAlpha);
   shaderMaterial.uniforms.time.value = time / 100;
-  shaderMaterial.uniforms.hue.value = 0.7 - 0.7*(betaBuffer.mean()-minBeta)/(maxBeta-minBeta);
-  shaderMaterial.uniforms.height.value = deltaBuffer.mean();
+  h = (h + 0.005) % 1.0;
+  shaderMaterial.uniforms.hue.value = h;
   renderer.render(scene, camera);
 };
 animate();
