@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import OrbitControls from 'three-orbitcontrols';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 //import Tone from 'tone';
 
 /*
@@ -17,7 +17,7 @@ let meter = null;
 
 const renderer = new THREE.WebGLRenderer({ preserveDrawingBuffer: true });
 renderer.autoClearColor = false;
-renderer.setClearColor(0xffffff, 1);
+renderer.setClearColor(0x000000, 1);
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
@@ -45,7 +45,7 @@ const animate = () => {
   requestAnimationFrame(animate);
   //spherePoints.rotation.y += 0.005;
   //spherePoints.rotation.x += 0.005;
-  h = (h + 0.005) % 1.0;
+  //h = (h + 0.005) % 1.0;
   pointsMaterial.color.setHSL(h, 1.0, 0.5);
   renderer.render(scene, camera);
 };
@@ -152,5 +152,5 @@ function volumeAudioProcess(event) {
     val = 0.85;
   }
 
-  //h = val;
+  h = val;
 }

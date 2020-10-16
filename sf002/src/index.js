@@ -1,12 +1,12 @@
-import * as THREE from 'three';
-import OrbitControls from 'three-orbitcontrols';
-import fscreen from 'fscreen';
+import * as THREE from 'three'
+import fscreen from 'fscreen'
+import SimplexNoise from 'simplex-noise'
 //import Tone from 'tone';
 
 // Use an iridescent metallic material.
 
-// Develop a  system for fading and cutting between specified colours. 
-// Randomized hold and ramp times. Some colours are meant to create gradients, 
+// Develop a  system for fading and cutting between specified colours.
+// Randomized hold and ramp times. Some colours are meant to create gradients,
 // others are meant to have sharp boundaries (and potentially only exist for a split second).
 
 const VERTEX_SHADER_ELLIPSOID = `
@@ -114,7 +114,7 @@ void main() {
   vec3 pos = position + n*height*normal;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(pos,1.0);
 }
-`;
+`
 const FRAGMENT_SHADER_ELLIPSOID = `
 varying vec3 vPosition;
 uniform float scale;
@@ -268,13 +268,13 @@ void main() {
   float g = 1.0 - n  - m;
   float b = 1.0 - n  - m;
   */
-  vec3 color = hsl2rgb(hue, 1.0, 0.5);
+  vec3 color = hsl2rgb(hue, 0.8, 0.8);
   float r = 1.0 - (1.0 - color.r) * n; 
   float g = 1.0 - (1.0 - color.g) * n;
   float b = 1.0 - (1.0 - color.b) * n;
   gl_FragColor = vec4(r, g, b, 1.0);
 }
-`;
+`
 
 const VERTEX_SHADER_GLOW = `
 varying vec3 vNormal;
@@ -283,7 +283,7 @@ void main()
     vNormal = normalize( normalMatrix * normal );
     gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
 }
-`;
+`
 const FRAGMENT_SHADER_GLOW = `
 varying vec3 vNormal;
 void main() 
@@ -291,171 +291,230 @@ void main()
 	float intensity = pow( 0.7 - dot( vNormal, vec3( 0.0, 0.0, 1.0 ) ), 4.0 ); 
     gl_FragColor = vec4( 1.0, 1.0, 1.0, 1.0 ) * intensity;
 }
-`;
+`
 
 class CircularBuffer {
   constructor(len, val) {
-    this.buffer = Array(len).fill(val);
-    this.index = 0;
+    this.buffer = Array(len).fill(val)
+    this.index = 0
   }
 
   push(value) {
-    this.buffer[this.index] = value;
-    this.index++;
+    this.buffer[this.index] = value
+    this.index++
     if (this.index >= this.buffer.length) {
-      this.index = 0;
+      this.index = 0
     }
   }
 
   mean() {
-    const sum = this.buffer.reduce((a, b) => a + b, 0);
-    return sum / this.buffer.length;
-  }
-}
-
-let alphaBuffer = new CircularBuffer(20, 0.5);
-let betaBuffer = new CircularBuffer(30, 0.5);
-let deltaBuffer = new CircularBuffer(20, 0.5);
-
-let alpha = 0.0;
-let beta = 0.0;
-let delta = 0.0;
-
-const webSocket = new WebSocket('ws://localhost:3000');
-webSocket.onmessage = function (event) {
-  const message = JSON.parse(event.data);
-  switch (message.wave) {
-    case 'alpha':
-      alpha = message.value;
-      break;
-    case 'beta':
-      beta = message.value;
-      betaBuffer.push(beta);
-      break;
-    case 'delta':
-      delta = message.value;
-      deltaBuffer.push(delta);
-      break;
+    const sum = this.buffer.reduce((a, b) => a + b, 0)
+    return sum / this.buffer.length
   }
 }
 
 let shaderMaterial = new THREE.ShaderMaterial({
   uniforms: {
-    scale: { type: "f", value: 0.199 }, //setting this to  exactly 2.0 causes weird glitches in the vertices...
-    hue: { type: "f", value: 0.0 },
-    height: { type: "f", value: 9.0 },
-    time: { type: "f", value: 0 },
+    scale: { type: 'f', value: 0.199 }, //setting this to  exactly 2.0 causes weird glitches in the vertices...
+    hue: { type: 'f', value: 0.0 },
+    height: { type: 'f', value: 15.0 },
+    time: { type: 'f', value: 0 },
   },
   vertexShader: VERTEX_SHADER_ELLIPSOID,
   fragmentShader: FRAGMENT_SHADER_ELLIPSOID,
-});
+})
 
-let scene = new THREE.Scene();
-let camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+let scene = new THREE.Scene()
+let camera = new THREE.OrthographicCamera(
+  0,
+  window.innerWidth / 16,
+  0,
+  window.innerHeight / -16,
+  -1000,
+  1000
+)
 
-let renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true  });
-renderer.setSize(window.innerWidth, window.innerHeight);
+let renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  preserveDrawingBuffer: true,
+})
+renderer.setSize(window.innerWidth, window.innerHeight)
 
-renderer.autoClearColor = false;
-renderer.setClearColor(0xffffff, 1);
+renderer.autoClearColor = false
+renderer.setClearColor(0xffffff, 1)
 
-document.body.appendChild(renderer.domElement);
+document.body.appendChild(renderer.domElement)
 
-let controls = new OrbitControls(camera, renderer.domElement);
-controls.enableZoom = true; // Doesn't work!
-
-let geometry = new THREE.SphereGeometry(5, 128, 128);
-let mesh = new THREE.Mesh(geometry, shaderMaterial);
-scene.add(mesh);
-
-var glowMaterial = new THREE.ShaderMaterial(
-  {
-    uniforms: {},
-    vertexShader: VERTEX_SHADER_GLOW,
-    fragmentShader: FRAGMENT_SHADER_GLOW,
-    side: THREE.BackSide,
-    blending: THREE.AdditiveBlending,
-    transparent: true
-  });
-
-geometry = new THREE.SphereGeometry(6, 64, 64);
-var glow = new THREE.Mesh(geometry, glowMaterial);
-//scene.add(glow);
-
-let light = new THREE.PointLight(0x193366, 1, 100);
-//scene.add(light);
-
-camera.position.z = 25;
-camera.position.y = 5;
-camera.lookAt(0, 0, 0);
-controls.update();
-
-//const initialTime = Date.now();
-let time = 0;
-let maxAlpha = 1;
-let maxBeta = 0.6;
-let minBeta = 0.4;
-let maxDelta = 0.6;
-let minDelta = 0.4;
+let geometry = new THREE.SphereGeometry(5, 128, 128)
+let mesh = new THREE.Mesh(geometry, shaderMaterial)
+scene.add(mesh)
 
 function handler() {
   if (fscreen.fullscreenElement !== null) {
-      console.log('Entered fullscreen mode');
+    console.log('Entered fullscreen mode')
   } else {
-      console.log('Exited fullscreen mode');
+    console.log('Exited fullscreen mode')
   }
 }
 
 if (fscreen.fullscreenEnabled) {
-  fscreen.addEventListener('fullscreenchange', handler, false);
+  fscreen.addEventListener('fullscreenchange', handler, false)
 }
 
 const commands = {
-  'f': [
-      () => {
-          if (fscreen.fullscreenElement)
-              fscreen.exitFullscreen();
-          else
-              fscreen.requestFullscreen(document.body);
-      }]
+  f: [
+    () => {
+      if (fscreen.fullscreenElement) fscreen.exitFullscreen()
+      else fscreen.requestFullscreen(document.body)
+    },
+  ],
 }
 
-const keyDown = e => {
+const keyDown = (e) => {
   if (commands[e.key]) {
-      if (!commands[e.key].down) {
-          let action = commands[e.key][0];
-          if (action) action();
-          commands[e.key].down = true;
-      }
+    if (!commands[e.key].down) {
+      let action = commands[e.key][0]
+      if (action) action()
+      commands[e.key].down = true
+    }
   }
 }
 
-window.addEventListener('keydown', keyDown);
-window.addEventListener( 'resize', onWindowResize, false );
+let clicked = false
+let mousePos = new THREE.Vector3(0, 0, 0)
 
-function onWindowResize(){
+window.addEventListener('keydown', keyDown)
+window.addEventListener('resize', onWindowResize, false)
+window.addEventListener(
+  'mousemove',
+  (e) => {
+    if (clicked) {
+      mesh.position.x += e.movementX / 16
+      mesh.position.y += -e.movementY / 16
+    }
+  },
+  false
+)
+window.addEventListener(
+  'mousedown',
+  (e) => {
+    mousePos.set(e.pageX / 16, -e.pageY / 16, 0)
+    console.log(mousePos)
+    console.log(mesh.position)
+    console.log(mesh.position.distanceTo(mousePos) / 16)
+    if (mesh.position.distanceTo(mousePos) < 14) clicked = true
+  },
+  false
+)
+window.addEventListener(
+  'mouseup',
+  () => {
+    clicked = false
+  },
+  false
+)
+window.addEventListener('wheel', (e) => {
+  mesh.scale.addScalar(-e.deltaY / 50)
+})
 
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-
-    renderer.setSize( window.innerWidth, window.innerHeight );
-
+function onWindowResize() {
+  camera.aspect = window.innerWidth / window.innerHeight
+  camera.updateProjectionMatrix()
+  renderer.setSize(window.innerWidth, window.innerHeight)
 }
 
-let h = 0.0;
+/*
+function pointerDown(ev) {
+  // The pointerdown event signals the start of a touch interaction.
+  // This event is cached to support 2-finger gestures
+  evCache.push(ev)
+  log('pointerDown', ev)
+}
+
+function pointerMove(ev) {
+  // This function implements a 2-pointer horizontal pinch/zoom gesture.
+  //
+  // If the distance between the two pointers has increased (zoom in),
+  // the taget element's background is changed to "pink" and if the
+  // distance is decreasing (zoom out), the color is changed to "lightblue".
+  //
+  // This function sets the target element's border to "dashed" to visually
+  // indicate the pointer's target received a move event.
+  log('pointerMove', ev)
+  ev.target.style.border = 'dashed'
+
+  // Find this event in the cache and update its record with this event
+  for (var i = 0; i < evCache.length; i++) {
+    if (ev.pointerId == evCache[i].pointerId) {
+      evCache[i] = ev
+      break
+    }
+  }
+
+  // If two pointers are down, check for pinch gestures
+  if (evCache.length == 2) {
+    // Calculate the distance between the two pointers
+    var curDiff = Math.abs(evCache[0].clientX - evCache[1].clientX)
+
+    if (prevDiff > 0) {
+      if (curDiff > prevDiff) {
+        // The distance between the two pointers has increased
+        log('Pinch moving OUT -> Zoom in', ev)
+        ev.target.style.background = 'pink'
+      }
+      if (curDiff < prevDiff) {
+        // The distance between the two pointers has decreased
+        log('Pinch moving IN -> Zoom out', ev)
+        ev.target.style.background = 'lightblue'
+      }
+    }
+
+    // Cache the distance for the next move event
+    prevDiff = curDiff
+  }
+}
+
+function pointerUp(ev) {
+  log(ev.type, ev)
+  // Remove this pointer from the cache and reset the target's
+  // background and border
+  removeEvent(ev)
+  ev.target.style.background = 'white'
+  ev.target.style.border = '1px solid black'
+
+  // If the number of pointers down is less than two then reset diff tracker
+  if (evCache.length < 2) prevDiff = -1
+}
+
+function removeEvent(ev) {
+  // Remove this event from the target's cache
+  for (var i = 0; i < evCache.length; i++) {
+    if (evCache[i].pointerId == ev.pointerId) {
+      evCache.splice(i, 1)
+      break
+    }
+  }
+}
+
+window.addEventListener('pointerdown', pointerDown, false)
+window.addEventListener('pointerup', pointerUp, false)
+window.addEventListener('pointercancel', pointerUp, false)
+window.addEventListener('pointermove', pointerMove, false)
+*/
+
+let h = 0.0
+let simplex = new SimplexNoise()
+let time = 0
+
+mesh.material.transparent = true
+mesh.material.opacity = 0.5
 
 let animate = function () {
-  requestAnimationFrame(animate);
-  if (alpha > maxAlpha) maxAlpha = alpha;
-  if (beta > maxBeta) maxBeta = beta;
-  else if (beta < minBeta) minBeta = beta;
-  if (delta > maxDelta) maxDelta = delta;
-  else if (delta < minDelta) minDelta = delta;
-  time += (maxAlpha - alpha);
-  alphaBuffer.push((maxAlpha - alpha)/maxAlpha);
-  shaderMaterial.uniforms.time.value = time / 100;
-  h = (h + 0.005) % 1.0;
-  shaderMaterial.uniforms.hue.value = h;
-  renderer.render(scene, camera);
-};
-animate();
+  requestAnimationFrame(animate)
+  time += 0.005
+  shaderMaterial.uniforms.time.value = time
+  h = (simplex.noise2D(time / 2, 0) + 1) * 0.5
+  shaderMaterial.uniforms.hue.value = h
+  renderer.render(scene, camera)
+}
+animate()
